@@ -1,0 +1,19 @@
+# Environments
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Data: raw/ is immutable downloads, processed/ is regenerable — neither is committed
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# MLflow (P3+)
+mlruns/
+
+# OS
+.DS_Store
