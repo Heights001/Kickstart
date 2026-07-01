@@ -1,0 +1,14 @@
+sources:
+  - name: mini_results
+    kind: csv
+    url: PLACEHOLDER  # tests rewrite this to a file:// URL of the fixture CSV
+    filename: results.csv
+    authoritative_names: true
+    columns:
+      date: date
+      home: home_team
+      away: away_team
+      home_goals: home_score
+      away_goals: away_score
+      competition: tournament
+      neutral: neutral

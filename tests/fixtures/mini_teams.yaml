@@ -1,0 +1,15 @@
+teams:
+  - id: scotland
+    name: Scotland
+  - id: england
+    name: England
+  - id: usa
+    name: United States
+    aliases: [USA, USMNT]
+  - id: wales
+    name: Wales
+  - id: mexico
+    name: Mexico
+  - id: iran
+    name: Iran
+    aliases: [IR Iran]
