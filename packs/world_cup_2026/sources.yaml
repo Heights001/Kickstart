@@ -18,3 +18,14 @@ sources:
       away_goals: away_score
       competition: tournament
       neutral: neutral
+  # Companion dataset: shootout winners for drawn knockout matches (results.csv
+  # records 90-minute scores only). Annotates Match.winner during ingest.
+  - name: martj42_shootouts
+    kind: shootouts_csv
+    url: https://raw.githubusercontent.com/martj42/international_results/master/shootouts.csv
+    filename: shootouts.csv
+    columns:
+      date: date
+      home: home_team
+      away: away_team
+      winner: winner

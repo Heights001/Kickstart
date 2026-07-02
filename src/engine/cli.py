@@ -76,6 +76,7 @@ def _print_ingest_report(report: IngestReport) -> None:
     print(f"Matches ingested : {report.match_count}")
     print(f"Date range       : {report.date_min} .. {report.date_max}")
     print(f"Rows skipped     : {report.skipped_rows} (missing scores)")
+    print(f"Shootout winners : {report.shootouts_annotated} drawn matches annotated")
     print(f"Unresolved names : {len(report.registered_names)} registered from authoritative source")
     if report.registered_names:
         print("  (not in teams.yaml — add aliases there if any should map to an existing team)")

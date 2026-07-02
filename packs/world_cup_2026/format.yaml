@@ -1,0 +1,86 @@
+# WC2026 competition format (SCOPE §2.8). Group draw per the December 2025 draw
+# with March 2026 playoff winners; bracket template verified against FIFA's
+# regulations PDF and the live R32 results on 2026-07-02.
+competition: FIFA World Cup
+season: "2026"
+start: 2026-06-11
+end: 2026-07-19
+
+# Venue approximation: a host plays with home advantage, all other pairings are
+# neutral. Per-stadium venue assignment is deliberately not modelled in v1.
+hosts: [usa, mexico, canada]
+
+points: {win: 3, draw: 1, loss: 0}
+
+groups:
+  A: [mexico, south_africa, south_korea, czech_republic]
+  B: [switzerland, canada, bosnia_and_herzegovina, qatar]
+  C: [brazil, morocco, scotland, haiti]
+  D: [usa, australia, paraguay, turkey]
+  E: [germany, ivory_coast, ecuador, curacao]
+  F: [netherlands, japan, sweden, tunisia]
+  G: [belgium, egypt, iran, new_zealand]
+  H: [spain, cape_verde, uruguay, saudi_arabia]
+  I: [france, norway, senegal, iraq]
+  J: [argentina, austria, algeria, jordan]
+  K: [colombia, portugal, dr_congo, uzbekistan]
+  L: [england, croatia, ghana, panama]
+
+# Group ranking: SCOPE §2.8 locked chain. head_to_head re-applies points/GD/GF
+# among the tied teams only; fair-play points are not simulatable (documented
+# approximation) so the final step is a seeded random draw.
+group_tiebreakers: [points, goal_difference, goals_for, head_to_head, random]
+
+third_place:
+  advance: 8
+  tiebreakers: [points, goal_difference, goals_for, random]
+  # Group-winner slots that receive a third-placed team, and the Annex C table.
+  allocation: bracket_allocation.yaml
+
+# Slot grammar: 1A/2A = group winner/runner-up, T1E = third allocated to slot
+# 1E by the allocation table, W74/L101 = winner/loser of a knockout match.
+knockout:
+  - round: R32
+    matches:
+      - {id: 73, home: 2A, away: 2B}
+      - {id: 74, home: 1E, away: T1E}
+      - {id: 75, home: 1F, away: 2C}
+      - {id: 76, home: 1C, away: 2F}
+      - {id: 77, home: 1I, away: T1I}
+      - {id: 78, home: 2E, away: 2I}
+      - {id: 79, home: 1A, away: T1A}
+      - {id: 80, home: 1L, away: T1L}
+      - {id: 81, home: 1D, away: T1D}
+      - {id: 82, home: 1G, away: T1G}
+      - {id: 83, home: 2K, away: 2L}
+      - {id: 84, home: 1H, away: 2J}
+      - {id: 85, home: 1B, away: T1B}
+      - {id: 86, home: 1J, away: 2H}
+      - {id: 87, home: 1K, away: T1K}
+      - {id: 88, home: 2D, away: 2G}
+  - round: R16
+    matches:
+      - {id: 89, home: W74, away: W77}
+      - {id: 90, home: W73, away: W75}
+      - {id: 91, home: W76, away: W78}
+      - {id: 92, home: W79, away: W80}
+      - {id: 93, home: W83, away: W84}
+      - {id: 94, home: W81, away: W82}
+      - {id: 95, home: W86, away: W88}
+      - {id: 96, home: W85, away: W87}
+  - round: QF
+    matches:
+      - {id: 97, home: W89, away: W90}
+      - {id: 98, home: W93, away: W94}
+      - {id: 99, home: W91, away: W92}
+      - {id: 100, home: W95, away: W96}
+  - round: SF
+    matches:
+      - {id: 101, home: W97, away: W98}
+      - {id: 102, home: W99, away: W100}
+  - round: ThirdPlace
+    matches:
+      - {id: 103, home: L101, away: L102}
+  - round: Final
+    matches:
+      - {id: 104, home: W101, away: W102}

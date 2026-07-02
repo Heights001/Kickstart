@@ -10,7 +10,7 @@ import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
 
-from engine.ingestion.base import RawMatch, SourceConfig
+from engine.ingestion.base import RawMatch, ShootoutRecord, SourceConfig
 from engine.utils.logging import get_logger, log_with
 
 logger = get_logger(__name__)
@@ -25,6 +25,20 @@ class MalformedRowError(ValueError):
         super().__init__(f"{path.name}:{line}: {problem}")
 
 
+def fetch_to_raw(config: SourceConfig, raw_dir: Path) -> Path:
+    """Download a source into ``raw_dir`` (immutable: existing files are kept)."""
+    target = raw_dir / config.filename
+    if target.exists():
+        log_with(logger, "raw file present, not re-downloading", path=str(target))
+        return target
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    log_with(logger, "downloading", url=config.url, path=str(target))
+    tmp = target.with_suffix(target.suffix + ".part")
+    urllib.request.urlretrieve(config.url, tmp)
+    tmp.rename(target)
+    return target
+
+
 class CsvSourceAdapter:
     """Downloads a results CSV and parses it into :class:`RawMatch` records.
 
@@ -37,16 +51,7 @@ class CsvSourceAdapter:
         self.skipped_rows = 0
 
     def fetch(self, raw_dir: Path) -> Path:
-        target = raw_dir / self.config.filename
-        if target.exists():
-            log_with(logger, "raw file present, not re-downloading", path=str(target))
-            return target
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        log_with(logger, "downloading", url=self.config.url, path=str(target))
-        tmp = target.with_suffix(target.suffix + ".part")
-        urllib.request.urlretrieve(self.config.url, tmp)
-        tmp.rename(target)
-        return target
+        return fetch_to_raw(self.config, raw_dir)
 
     def parse(self, path: Path) -> Iterator[RawMatch]:
         cols = self.config.columns
@@ -67,6 +72,30 @@ class CsvSourceAdapter:
                         neutral=_parse_bool(row[cols["neutral"]], path, line),
                         home_goals=int(home_goals),
                         away_goals=int(away_goals),
+                    )
+                except (ValueError, KeyError) as exc:
+                    raise MalformedRowError(path, line, str(exc)) from exc
+
+
+class ShootoutsCsvAdapter:
+    """Parses a penalty-shootout results CSV into :class:`ShootoutRecord` rows."""
+
+    def __init__(self, config: SourceConfig) -> None:
+        self.config = config
+
+    def fetch(self, raw_dir: Path) -> Path:
+        return fetch_to_raw(self.config, raw_dir)
+
+    def parse(self, path: Path) -> Iterator[ShootoutRecord]:
+        cols = self.config.columns
+        with path.open(newline="", encoding="utf-8") as fh:
+            for line, row in enumerate(csv.DictReader(fh), start=2):
+                try:
+                    yield ShootoutRecord(
+                        date=dt.date.fromisoformat(row[cols["date"]].strip()),
+                        home_name=row[cols["home"]].strip(),
+                        away_name=row[cols["away"]].strip(),
+                        winner_name=row[cols["winner"]].strip(),
                     )
                 except (ValueError, KeyError) as exc:
                     raise MalformedRowError(path, line, str(exc)) from exc

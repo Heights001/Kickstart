@@ -17,7 +17,7 @@ from tqdm import tqdm
 from engine.core.registry import TeamRegistry, UnresolvedTeamError, slugify
 from engine.core.schema import Match, Team
 from engine.ingestion.base import RawMatch, SourceAdapter, SourceConfig
-from engine.ingestion.csv_adapter import CsvSourceAdapter
+from engine.ingestion.csv_adapter import CsvSourceAdapter, ShootoutsCsvAdapter
 from engine.utils.logging import get_logger, log_with
 
 logger = get_logger(__name__)
@@ -38,6 +38,7 @@ class IngestReport:
     date_min: dt.date | None = None
     date_max: dt.date | None = None
     skipped_rows: int = 0
+    shootouts_annotated: int = 0
     registered_names: list[str] = field(default_factory=list)
 
 
@@ -58,12 +59,16 @@ def ingest_pack(pack_dir: Path, data_dir: Path) -> IngestReport:
     report = IngestReport()
     matches: list[Match] = []
 
-    for config in load_source_configs(pack_dir):
+    configs = load_source_configs(pack_dir)
+    for config in (c for c in configs if c.kind != "shootouts_csv"):
         adapter = build_adapter(config)
         raw_path = adapter.fetch(data_dir / "raw")
         for raw in tqdm(adapter.parse(raw_path), desc=config.name, unit=" rows"):
             matches.append(_to_match(raw, registry, config, report))
         report.skipped_rows += getattr(adapter, "skipped_rows", 0)
+
+    for config in (c for c in configs if c.kind == "shootouts_csv"):
+        matches = _annotate_shootouts(matches, config, data_dir, registry, report)
 
     processed_dir = data_dir / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -85,6 +90,36 @@ def ingest_pack(pack_dir: Path, data_dir: Path) -> IngestReport:
         output=str(out_path),
     )
     return report
+
+
+def _annotate_shootouts(
+    matches: list[Match],
+    config: SourceConfig,
+    data_dir: Path,
+    registry: TeamRegistry,
+    report: IngestReport,
+) -> list[Match]:
+    """Set ``winner`` on drawn matches that a shootout source says were decided."""
+    adapter = ShootoutsCsvAdapter(config)
+    raw_path = adapter.fetch(data_dir / "raw")
+    winners: dict[tuple[dt.date, str, str], str] = {}
+    for record in adapter.parse(raw_path):
+        try:
+            home, away = registry.resolve(record.home_name), registry.resolve(record.away_name)
+            winners[record.date, home, away] = registry.resolve(record.winner_name)
+        except UnresolvedTeamError:
+            # Shootouts between teams the match sources never produced (e.g. rows
+            # predating the results backbone) are irrelevant; skip quietly.
+            continue
+
+    annotated = []
+    for match in matches:
+        winner = winners.get((match.date, match.home, match.away))
+        if winner is not None and match.home_goals == match.away_goals:
+            match = match.model_copy(update={"winner": winner})
+            report.shootouts_annotated += 1
+        annotated.append(match)
+    return annotated
 
 
 def _to_match(

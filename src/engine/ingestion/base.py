@@ -28,6 +28,17 @@ class RawMatch(BaseModel):
     extras: dict[str, float] = Field(default_factory=dict)
 
 
+class ShootoutRecord(BaseModel):
+    """A penalty-shootout result, before team-name resolution."""
+
+    model_config = ConfigDict(frozen=True)
+
+    date: dt.date
+    home_name: str
+    away_name: str
+    winner_name: str
+
+
 class SourceConfig(BaseModel):
     """One entry in a pack's ``sources.yaml``."""
 

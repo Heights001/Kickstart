@@ -15,6 +15,7 @@ def make_pack(tmp_path: Path, *, authoritative: bool = True) -> Path:
     pack.mkdir()
     (pack / "teams.yaml").write_text((FIXTURES / "mini_teams.yaml").read_text())
     sources = (FIXTURES / "mini_sources.yaml").read_text()
+    sources = sources.replace("PLACEHOLDER_SHOOTOUTS", (FIXTURES / "mini_shootouts.csv").as_uri())
     sources = sources.replace("PLACEHOLDER", (FIXTURES / "mini_results.csv").as_uri())
     if not authoritative:
         sources = sources.replace("authoritative_names: true", "authoritative_names: false")
@@ -42,6 +43,11 @@ class TestIngestPack:
         assert matches[3].away == "south_africa"  # registered from authoritative source
         assert matches[3].season == "2026"
         assert matches[1].neutral is True
+        # The drawn USA-Wales match gets its shootout winner; the unknown-team
+        # shootout row is skipped quietly.
+        assert matches[1].winner == "usa"
+        assert report.shootouts_annotated == 1
+        assert all(m.winner is None for m in matches if m is not matches[1])
 
     def test_non_authoritative_source_raises(self, tmp_path: Path) -> None:
         pack = make_pack(tmp_path, authoritative=False)

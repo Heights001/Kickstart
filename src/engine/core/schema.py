@@ -33,10 +33,17 @@ class Match(BaseModel):
     neutral: bool
     home_goals: int = Field(ge=0)
     away_goals: int = Field(ge=0)
+    # Set only for drawn knockout matches decided by a shootout.
+    winner: str | None = None
     extras: dict[str, float] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def _distinct_teams(self) -> "Match":
+    def _consistent(self) -> "Match":
         if self.home == self.away:
             raise ValueError(f"home and away are the same team: {self.home!r}")
+        if self.winner is not None:
+            if self.winner not in (self.home, self.away):
+                raise ValueError(f"winner {self.winner!r} is not a participant")
+            if self.home_goals != self.away_goals:
+                raise ValueError("winner is only for drawn matches decided by shootout")
         return self
