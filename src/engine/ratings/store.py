@@ -115,6 +115,12 @@ class RatingsWalker:
             outcome=_outcome(match),
         )
 
+    def matches_played(self, team_id: str) -> int:
+        return self._matches_played.get(team_id, 0)
+
+    def tier_matches(self, team_id: str, tier: str) -> int:
+        return self._tier_matches.get((team_id, tier), 0)
+
     def _rest_days(self, team_id: str, on: dt.date) -> int:
         last = self._last_played.get(team_id)
         if last is None:

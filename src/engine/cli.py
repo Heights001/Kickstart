@@ -8,8 +8,11 @@ from dataclasses import asdict
 from pathlib import Path
 
 from engine.core.config import load_backtests, load_engine_config
+from engine.evaluation.promotion import decide, promoted_rung, record_promotion
+from engine.evaluation.tracking import log_rung_evaluation
 from engine.evaluation.walk_forward import evaluate_window
 from engine.ingestion.pipeline import IngestReport, ingest_pack
+from engine.models.ladder import get_rung
 from engine.ratings.pipeline import load_features, rebuild_ratings
 from engine.simulation.pipeline import run_simulation
 
@@ -27,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
         sub_parser.add_argument("--data-dir", type=Path, default=Path("data"))
     for sub_parser in (ratings, train, simulate):
         sub_parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
-    train.add_argument("--rung", type=int, choices=[0], default=0)
+    train.add_argument("--rung", type=int, choices=[0, 1, 2], default=0)
     ingest.add_argument(
         "--refresh",
         action="store_true",
@@ -51,7 +54,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Ratings      : {ratings_report.ratings_path}")
         return 0
     if args.command == "train":
-        return _run_train(args.pack, args.data_dir, args.config)
+        if args.rung == 0:
+            return _run_train(args.pack, args.data_dir, args.config)
+        return _run_train_rung(args.pack, args.data_dir, args.config, args.rung)
     if args.command == "simulate":
         raw = args.freeze if args.freeze is not None else args.as_of
         as_of = dt.date.today() if raw == "now" else dt.date.fromisoformat(raw)
@@ -65,7 +70,7 @@ def _run_simulate(
     result, _spec = run_simulation(pack_dir, data_dir, config_path, as_of, runs)
     print(
         f"\nas-of {result.as_of} | {result.runs} runs | seed {result.seed} "
-        f"| rung0+{result.calibrator}"
+        f"| {result.rung}+{result.calibrator}"
     )
     header = (
         f"{'team':24} {'champion':>9} {'±SE':>7} {'final':>7} {'SF':>7} "
@@ -111,6 +116,44 @@ def _run_train(pack_dir: Path, data_dir: Path, config_path: Path) -> int:
         return 0
     print("P1 gate FAILED: Rung 0 does not beat the baseline on every window.")
     return 1
+
+
+def _run_train_rung(pack_dir: Path, data_dir: Path, config_path: Path, rung: int) -> int:
+    """Evaluate rung N against rung N-1 and apply the promotion gate (rule 6)."""
+    config = load_engine_config(config_path)
+    features = load_features(data_dir / "processed" / "features.jsonl")
+    windows = load_backtests(pack_dir)
+
+    candidate_spec = get_rung(rung, config)
+    incumbent_spec = get_rung(rung - 1, config)
+    candidate = [evaluate_window(features, w, config, candidate_spec) for w in windows]
+    incumbent = [evaluate_window(features, w, config, incumbent_spec) for w in windows]
+
+    print(f"{'window':8} {'rung':>6} {'calib':>9} {'logloss':>9} {'brier':>7} {'ece':>7}")
+    for spec_name, results in ((candidate_spec.name, candidate), (incumbent_spec.name, incumbent)):
+        for r in results:
+            print(
+                f"{r.window:8} {spec_name:>6} {r.calibrator:>9} "
+                f"{r.model.log_loss:>9.4f} {r.model.brier:>7.4f} {r.model.ece:>7.4f}"
+            )
+
+    decision = decide(rung, candidate, rung - 1, incumbent)
+    run_id = log_rung_evaluation(config.mlflow, candidate_spec.name, candidate, decision)
+    registry_path = record_promotion(data_dir, decision)
+
+    print(
+        f"\nmean log loss: {candidate_spec.name} {decision.candidate_log_loss:.4f} "
+        f"vs {incumbent_spec.name} {decision.incumbent_log_loss:.4f}"
+    )
+    print(
+        f"mean ECE     : {candidate_spec.name} {decision.candidate_ece:.4f} "
+        f"vs {incumbent_spec.name} {decision.incumbent_ece:.4f}"
+    )
+    verdict = "PROMOTED" if decision.promoted else "NOT promoted (rule 6 gate)"
+    print(f"Decision     : rung {rung} {verdict}")
+    print(f"Registry     : {registry_path} (simulate uses rung {promoted_rung(data_dir)})")
+    print(f"MLflow run   : {run_id}")
+    return 0
 
 
 def _print_ingest_report(report: IngestReport) -> None:

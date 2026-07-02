@@ -10,7 +10,7 @@ from engine.core.schema import Match
 from engine.evaluation.walk_forward import fit_model_asof
 from engine.simulation.format import load_format
 from engine.simulation.monte_carlo import _rank_stable_complete_groups, simulate
-from engine.simulation.sampler import MatchSampler
+from engine.simulation.sampler import MatchSampler, TeamState
 from engine.simulation.state import build_state
 from tests.test_models import synthetic_dataset
 
@@ -23,25 +23,30 @@ def config() -> EngineConfig:
     return load_engine_config(REPO / "configs/default.yaml")
 
 
+def make_state(elo: float) -> TeamState:
+    return TeamState(elo=elo, form=0.5, attack=1.0, defence=1.0, matches=100, tier_matches=10)
+
+
 @pytest.fixture(scope="module")
 def sampler(config: EngineConfig) -> MatchSampler:
     """Sampler with a model fitted on synthetic data and hand-set ratings."""
     features = synthetic_dataset(3000, dt.date(2000, 1, 1), seed=11)
-    model, calibrator = fit_model_asof(features, dt.date(2011, 1, 1), config)
+    model, calibrator, rung = fit_model_asof(features, dt.date(2011, 1, 1), config)
     spec = load_format(PACK)
-    elo = dict.fromkeys(spec.teams, 1600.0)
-    elo["argentina"] = 2100.0
-    elo["jordan"] = 1300.0
+    teams = {t: make_state(1600.0) for t in spec.teams}
+    teams["argentina"] = make_state(2100.0)
+    teams["jordan"] = make_state(1300.0)
     return MatchSampler(
-        elo=elo,
-        attack=dict.fromkeys(spec.teams, 1.0),
-        defence=dict.fromkeys(spec.teams, 1.0),
+        teams=teams,
         mu=1.3,
-        default_elo=config.elo.initial,
+        default_state=make_state(config.elo.initial),
         model=model,
         calibrator=calibrator,
+        rung=rung,
         hosts=frozenset(spec.hosts),
         config=config,
+        competition=spec.competition,
+        as_of=dt.date(2026, 6, 10),
     )
 
 

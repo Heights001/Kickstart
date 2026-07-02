@@ -37,6 +37,7 @@ class SimulationResult:
     as_of: dt.date
     runs: int
     seed: int
+    rung: str
     calibrator: str
     reach: dict[str, dict[str, float]] = field(default_factory=dict)  # team -> round -> p
 
@@ -124,6 +125,7 @@ def simulate(
         as_of=state.as_of,
         runs=runs,
         seed=seed,
+        rung=sampler.rung.name,
         calibrator=sampler.calibrator.name,
         reach=reach,
     )

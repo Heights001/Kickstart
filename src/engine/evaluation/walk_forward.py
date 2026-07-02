@@ -7,14 +7,17 @@ matches in [freeze, end). No shuffled splits, ever.
 
 import datetime as dt
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from engine.core.config import BacktestWindow, EngineConfig
 from engine.evaluation.metrics import FloatArray, IntArray, brier, ece, log_loss
-from engine.models.base import labels_array
+from engine.models.base import OutcomeModel, labels_array
 from engine.models.baselines import FrequencyBaseline
 from engine.models.calibration import Calibrator, fit_best_calibrator
-from engine.models.rung0 import Rung0Model, rung0_features
 from engine.ratings.store import MatchFeatures
+
+if TYPE_CHECKING:
+    from engine.models.ladder import RungSpec
 
 
 @dataclass(frozen=True)
@@ -54,20 +57,25 @@ def split_window(
 
 
 def evaluate_window(
-    features: list[MatchFeatures], window: BacktestWindow, config: EngineConfig
+    features: list[MatchFeatures],
+    window: BacktestWindow,
+    config: EngineConfig,
+    rung: "RungSpec | None" = None,
 ) -> WindowResult:
+    from engine.models.ladder import get_rung
+
+    spec = rung if rung is not None else get_rung(0, config)
     train, val, test = split_window(features, window, config.calibration.window_years)
     if not train or not val or not test:
         raise ValueError(
             f"window {window.name!r}: empty split "
             f"(train={len(train)}, val={len(val)}, test={len(test)})"
         )
-    x_train, y_train = rung0_features(train), labels_array(train)
-    x_val, y_val = rung0_features(val), labels_array(val)
-    x_test, y_test = rung0_features(test), labels_array(test)
+    x_train, y_train = spec.extract(train), labels_array(train)
+    x_val, y_val = spec.extract(val), labels_array(val)
+    x_test, y_test = spec.extract(test), labels_array(test)
 
-    model = Rung0Model(config.models.rung0, config.seed)
-    model.fit(x_train, y_train)
+    model = _fit(spec, x_train, y_train, x_val, y_val)
     calibrator = fit_best_calibrator(
         model.predict_proba(x_val), y_val, ece_bins=config.calibration.ece_bins, seed=config.seed
     )
@@ -89,24 +97,48 @@ def evaluate_window(
     )
 
 
+def _fit(
+    spec: "RungSpec",
+    x_train: FloatArray,
+    y_train: IntArray,
+    x_val: FloatArray,
+    y_val: IntArray,
+) -> "OutcomeModel":
+    model = spec.make()
+    if spec.needs_tuning:
+        from engine.models.rung2 import Rung2Model
+
+        assert isinstance(model, Rung2Model)
+        model.tune(x_train, y_train, x_val, y_val)
+    model.fit(x_train, y_train)
+    return model
+
+
 def fit_model_asof(
-    features: list[MatchFeatures], as_of: dt.date, config: EngineConfig
-) -> tuple[Rung0Model, Calibrator]:
-    """Train Rung 0 + its calibrator strictly on pre-``as_of`` data (rule 3)."""
+    features: list[MatchFeatures],
+    as_of: dt.date,
+    config: EngineConfig,
+    rung: "RungSpec | None" = None,
+) -> "tuple[OutcomeModel, Calibrator, RungSpec]":
+    """Train a rung + its calibrator strictly on pre-``as_of`` data (rule 3)."""
+    from engine.models.ladder import get_rung
+
+    spec = rung if rung is not None else get_rung(0, config)
     calib_start = _years_before(as_of, config.calibration.window_years)
     train = [f for f in features if f.date < calib_start]
     val = [f for f in features if calib_start <= f.date < as_of]
     if not train or not val:
         raise ValueError(f"as_of {as_of}: empty split (train={len(train)}, val={len(val)})")
-    model = Rung0Model(config.models.rung0, config.seed)
-    model.fit(rung0_features(train), labels_array(train))
+    x_train, y_train = spec.extract(train), labels_array(train)
+    x_val, y_val = spec.extract(val), labels_array(val)
+    model = _fit(spec, x_train, y_train, x_val, y_val)
     calibrator = fit_best_calibrator(
-        model.predict_proba(rung0_features(val)),
-        labels_array(val),
+        model.predict_proba(x_val),
+        y_val,
         ece_bins=config.calibration.ece_bins,
         seed=config.seed,
     )
-    return model, calibrator
+    return model, calibrator, spec
 
 
 def _metrics(y: IntArray, probs: FloatArray, bins: int) -> Metrics:

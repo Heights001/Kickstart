@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 
 from engine.core.config import load_competition_tiers, load_engine_config
+from engine.evaluation.promotion import promoted_rung
 from engine.ingestion.pipeline import load_matches
+from engine.models.ladder import get_rung
 from engine.ratings.pipeline import load_features
 from engine.simulation.format import FormatSpec, load_format
 from engine.simulation.monte_carlo import ROUNDS, SimulationResult, simulate
@@ -32,7 +34,8 @@ def run_simulation(
     features = load_features(data_dir / "processed" / "features.jsonl")
 
     state = build_state(matches, spec, as_of)
-    sampler = MatchSampler.build(matches, features, as_of, spec, config, tiers)
+    rung = get_rung(promoted_rung(data_dir), config)
+    sampler = MatchSampler.build(matches, features, as_of, spec, config, tiers, rung)
     n_runs = runs if runs is not None else config.simulation.runs
     log_with(
         logger,
@@ -40,6 +43,7 @@ def run_simulation(
         as_of=str(as_of),
         runs=n_runs,
         completed_matches=state.completed_count,
+        rung=sampler.rung.name,
         calibrator=sampler.calibrator.name,
     )
     result = simulate(spec, state, sampler, n_runs, config.seed)
@@ -56,7 +60,7 @@ def _append_prob_history(path: Path, result: SimulationResult) -> None:
                 "as_of": str(result.as_of),
                 "generated_at": generated_at,
                 "team": team,
-                "model": f"rung0+{result.calibrator}",
+                "model": f"{result.rung}+{result.calibrator}",
                 "runs": result.runs,
                 "seed": result.seed,
                 **{round_name: probs[round_name] for round_name in ROUNDS},

@@ -71,17 +71,41 @@ class CalibrationConfig(BaseModel):
     ece_bins: int = Field(gt=1)
 
 
-class Rung0Config(BaseModel):
+class LogisticRungConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     max_iter: int = Field(gt=0)
     c: float = Field(gt=0.0)
 
 
+# Backwards-friendly alias: rung 0 and rung 1 share the logistic config shape.
+Rung0Config = LogisticRungConfig
+
+
+class Rung2Config(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    n_trials: int = Field(gt=0)
+    n_estimators: int = Field(gt=0)
+    early_stopping_rounds: int = Field(gt=0)
+    learning_rate: tuple[float, float]
+    num_leaves: tuple[int, int]
+    min_child_samples: tuple[int, int]
+
+
+class MlflowConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    tracking_dir: str
+    experiment: str
+
+
 class ModelsConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    rung0: Rung0Config
+    rung0: LogisticRungConfig
+    rung1: LogisticRungConfig
+    rung2: Rung2Config
 
 
 class SimulationConfig(BaseModel):
@@ -104,6 +128,7 @@ class EngineConfig(BaseModel):
     calibration: CalibrationConfig
     models: ModelsConfig
     simulation: SimulationConfig
+    mlflow: MlflowConfig
 
 
 def load_engine_config(path: Path) -> EngineConfig:
