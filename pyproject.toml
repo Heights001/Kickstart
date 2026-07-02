@@ -5,8 +5,10 @@ description = "Competition-agnostic football prediction engine. v1 pack: FIFA Wo
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.5.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
+    "scikit-learn>=1.9.0",
     "tqdm>=4.66",
 ]
 
@@ -50,6 +52,10 @@ python_version = "3.12"
 strict = true
 files = ["src"]
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from engine.core.config import load_competition_tiers, load_engine_config
 from engine.ingestion.pipeline import load_matches
-from engine.ratings.store import RatingsWalker, build_features
+from engine.ratings.store import MatchFeatures, RatingsWalker, build_features
 from engine.utils.logging import get_logger, log_with
 
 logger = get_logger(__name__)
@@ -58,4 +58,10 @@ def rebuild_ratings(pack_dir: Path, data_dir: Path, config_path: Path) -> Rating
     return RatingsReport(count, len(final), features_path, ratings_path)
 
 
-__all__ = ["RatingsReport", "build_features", "rebuild_ratings"]
+def load_features(path: Path) -> list[MatchFeatures]:
+    """Read per-match feature snapshots back from a processed JSONL file."""
+    with path.open(encoding="utf-8") as fh:
+        return [MatchFeatures.model_validate_json(line) for line in fh]
+
+
+__all__ = ["RatingsReport", "build_features", "load_features", "rebuild_ratings"]
