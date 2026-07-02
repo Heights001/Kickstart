@@ -85,3 +85,19 @@ class TestFetch:
         # data/raw is immutable: a second fetch must not touch the existing file.
         fetched.write_text("locally frozen")
         assert adapter.fetch(raw_dir).read_text() == "locally frozen"
+
+    def test_refresh_downloads_date_stamped_copy(self, tmp_path: Path) -> None:
+        import datetime as dt
+
+        source = FIXTURES / "mini_results.csv"
+        raw_dir = tmp_path / "raw"
+        plain = make_adapter(url=source.as_uri())
+        plain.fetch(raw_dir).write_text("frozen original")
+
+        refresher = make_adapter(url=source.as_uri())
+        refresher.refresh = True
+        stamped = refresher.fetch(raw_dir)
+        assert stamped.name == f"results_{dt.date.today().strftime('%Y%m%d')}.csv"
+        assert stamped.read_text() == source.read_text()
+        # The original raw file is untouched (append-only).
+        assert (raw_dir / "results.csv").read_text() == "frozen original"

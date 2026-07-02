@@ -25,9 +25,16 @@ class MalformedRowError(ValueError):
         super().__init__(f"{path.name}:{line}: {problem}")
 
 
-def fetch_to_raw(config: SourceConfig, raw_dir: Path) -> Path:
-    """Download a source into ``raw_dir`` (immutable: existing files are kept)."""
+def fetch_to_raw(config: SourceConfig, raw_dir: Path, *, refresh: bool = False) -> Path:
+    """Download a source into ``raw_dir``.
+
+    ``data/raw`` is append-only: existing files are never overwritten. A refresh
+    downloads to a new date-stamped file (at most once per day) instead.
+    """
     target = raw_dir / config.filename
+    if refresh:
+        stamp = dt.date.today().strftime("%Y%m%d")
+        target = raw_dir / f"{Path(config.filename).stem}_{stamp}{Path(config.filename).suffix}"
     if target.exists():
         log_with(logger, "raw file present, not re-downloading", path=str(target))
         return target
@@ -46,12 +53,13 @@ class CsvSourceAdapter:
     and counted in :attr:`skipped_rows`; anything else malformed raises.
     """
 
-    def __init__(self, config: SourceConfig) -> None:
+    def __init__(self, config: SourceConfig, *, refresh: bool = False) -> None:
         self.config = config
+        self.refresh = refresh
         self.skipped_rows = 0
 
     def fetch(self, raw_dir: Path) -> Path:
-        return fetch_to_raw(self.config, raw_dir)
+        return fetch_to_raw(self.config, raw_dir, refresh=self.refresh)
 
     def parse(self, path: Path) -> Iterator[RawMatch]:
         cols = self.config.columns
@@ -80,11 +88,12 @@ class CsvSourceAdapter:
 class ShootoutsCsvAdapter:
     """Parses a penalty-shootout results CSV into :class:`ShootoutRecord` rows."""
 
-    def __init__(self, config: SourceConfig) -> None:
+    def __init__(self, config: SourceConfig, *, refresh: bool = False) -> None:
         self.config = config
+        self.refresh = refresh
 
     def fetch(self, raw_dir: Path) -> Path:
-        return fetch_to_raw(self.config, raw_dir)
+        return fetch_to_raw(self.config, raw_dir, refresh=self.refresh)
 
     def parse(self, path: Path) -> Iterator[ShootoutRecord]:
         cols = self.config.columns

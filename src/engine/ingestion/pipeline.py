@@ -42,9 +42,9 @@ class IngestReport:
     registered_names: list[str] = field(default_factory=list)
 
 
-def build_adapter(config: SourceConfig) -> SourceAdapter:
+def build_adapter(config: SourceConfig, *, refresh: bool = False) -> SourceAdapter:
     if config.kind == "csv":
-        return CsvSourceAdapter(config)
+        return CsvSourceAdapter(config, refresh=refresh)
     raise ValueError(f"unknown source kind {config.kind!r} (source {config.name!r})")
 
 
@@ -53,7 +53,7 @@ def load_source_configs(pack_dir: Path) -> list[SourceConfig]:
     return [SourceConfig.model_validate(entry) for entry in raw["sources"]]
 
 
-def ingest_pack(pack_dir: Path, data_dir: Path) -> IngestReport:
+def ingest_pack(pack_dir: Path, data_dir: Path, *, refresh: bool = False) -> IngestReport:
     """Run the full raw→processed pipeline for one pack."""
     registry = TeamRegistry.from_yaml(pack_dir / "teams.yaml")
     report = IngestReport()
@@ -61,14 +61,14 @@ def ingest_pack(pack_dir: Path, data_dir: Path) -> IngestReport:
 
     configs = load_source_configs(pack_dir)
     for config in (c for c in configs if c.kind != "shootouts_csv"):
-        adapter = build_adapter(config)
+        adapter = build_adapter(config, refresh=refresh)
         raw_path = adapter.fetch(data_dir / "raw")
         for raw in tqdm(adapter.parse(raw_path), desc=config.name, unit=" rows"):
             matches.append(_to_match(raw, registry, config, report))
         report.skipped_rows += getattr(adapter, "skipped_rows", 0)
 
     for config in (c for c in configs if c.kind == "shootouts_csv"):
-        matches = _annotate_shootouts(matches, config, data_dir, registry, report)
+        matches = _annotate_shootouts(matches, config, data_dir, registry, report, refresh=refresh)
 
     processed_dir = data_dir / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -98,9 +98,11 @@ def _annotate_shootouts(
     data_dir: Path,
     registry: TeamRegistry,
     report: IngestReport,
+    *,
+    refresh: bool = False,
 ) -> list[Match]:
     """Set ``winner`` on drawn matches that a shootout source says were decided."""
-    adapter = ShootoutsCsvAdapter(config)
+    adapter = ShootoutsCsvAdapter(config, refresh=refresh)
     raw_path = adapter.fetch(data_dir / "raw")
     winners: dict[tuple[dt.date, str, str], str] = {}
     for record in adapter.parse(raw_path):

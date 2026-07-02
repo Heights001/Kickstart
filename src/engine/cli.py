@@ -28,6 +28,11 @@ def main(argv: list[str] | None = None) -> int:
     for sub_parser in (ratings, train, simulate):
         sub_parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     train.add_argument("--rung", type=int, choices=[0], default=0)
+    ingest.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Re-download sources to date-stamped raw files (raw/ stays append-only)",
+    )
     group = simulate.add_mutually_exclusive_group()
     group.add_argument("--as-of", default="now", help='"now" or YYYY-MM-DD')
     group.add_argument("--freeze", default=None, help="Alias for --as-of (rewind backtests)")
@@ -35,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
-        report = ingest_pack(args.pack, args.data_dir)
+        report = ingest_pack(args.pack, args.data_dir, refresh=args.refresh)
         _print_ingest_report(report)
         return 0
     if args.command == "ratings":
