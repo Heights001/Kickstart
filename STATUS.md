@@ -1,32 +1,46 @@
 # STATUS.md
 
-**Last updated:** 2026-07-01 (pre-implementation)
+**Last updated:** 2026-07-01 (end of P0 session)
 **Tournament context:** WC2026 live — group stage complete, Round of 32 in progress. Final is
 July 19. P2 (MVP milestone) before the final is the target that makes this tournament usable
 end-to-end; earlier is better for the probability-over-time chart.
 
 ## Current phase
 
-P0 — not started. No code exists yet.
+**P0 — complete.** Full backbone loads to canonical matches; all four gates green.
 
-## Locked this session (see SCOPE.md §2 for full detail)
+- `uv run engine ingest --pack packs/world_cup_2026` ingests **49,484 matches
+  (1872-11-30 → 2026-06-30)**, 12 rows skipped for missing scores, 288 names
+  auto-registered from the authoritative backbone (all non-FIFA entities — micronations,
+  regions), zero alias collisions.
+- Shipped: uv/ruff/mypy/pytest scaffold + CI workflow (four gates); canonical `Match`/`Team`
+  schema (`src/engine/core/schema.py`); team registry with alias resolution, suggested-alias
+  reports, and collision detection (`src/engine/core/registry.py`); adapter protocol + CSV
+  adapter + ingest pipeline (`src/engine/ingestion/`); `engine ingest` CLI; `world_cup_2026`
+  pack (`teams.yaml` with the 48 qualified teams + aliases, `sources.yaml`); 33 tests.
 
-- Engine/pack architecture; v1 ships only the `world_cup_2026` pack. EPL + data-poor-league
-  packs deferred to post-v1.
-- Model ladder (rating-logistic → feature LR → LightGBM+Optuna) with calibration on every rung
-  and a promote-only-if-better gate.
-- Conditional scoreline sampler for group tiebreakers; renormalised win probs for knockout draws.
-- Data: martj42 historical results backbone + football-data.org live feed with CSV fallback;
-  own in-engine Elo (no scraped ratings).
-- Live-state simulation and rewind backtesting (freeze 2026-06-10) are core MVP.
-- Ruff replaces Black (lint + format in one tool).
+## Decisions made this session
+
+- **Authoritative-source registration (approved by Daniel):** rule 4 stays strict for all
+  sources except one marked `authoritative_names: true` in `sources.yaml` (the martj42
+  backbone). Unknown names from that source are explicitly registered as canonical teams —
+  collision-checked against existing aliases (collisions still raise) and listed in the
+  ingest report. Rationale: the backbone has ~330 teams; teams.yaml seeds only the 48
+  qualified, but P1 Elo needs every team's history. The P2 live feed stays strict-raise.
+- stdlib `csv` (not pandas) for the P0 adapter; pandas enters in P1 when ratings need it.
+- argparse (not Typer) for the CLI; processed output is JSONL (`data/processed/matches.jsonl`).
+- No `configs/` yet — P0 has no tunable numbers; K-factors etc. arrive in P1.
+- Plain commit messages — no Co-Authored-By trailer (Daniel's preference).
+- 48-team list verified against post-playoff sources on 2026-07-01 (canonical names follow
+  the martj42 dataset; FIFA-style variants are aliases).
 
 ## Next actions
 
-1. Answer SCOPE.md §7 open questions (name, football-data.org key, xG in/out, license).
-2. P0: scaffold repo with uv + ruff + mypy + pytest + CI skeleton; commit SCOPE/CLAUDE/STATUS.
-3. P0: implement `Match`/`Team` schema, team registry, CSV adapter; load the historical
-   backbone end-to-end with alias-collision report.
+1. Answer remaining SCOPE.md §7 open questions (repo name, football-data.org key, xG in/out,
+   license).
+2. P1: chronological Elo / attack-defence / form updaters (`src/engine/ratings/`) with
+   config-driven K-factors under `configs/`; hand-computed-fixture tests; neutral-venue flag.
+3. P1: Rung 0 rating-only logistic + calibration layer + walk-forward evaluation harness.
 
 ## Reopened decisions
 
@@ -34,4 +48,4 @@ None.
 
 ## Blocked / waiting
 
-Nothing — P0 has no external dependencies (backbone dataset is a public CSV).
+Nothing. Local `main` is 5 commits ahead of `origin/main` — push when ready.
