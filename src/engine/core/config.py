@@ -84,6 +84,15 @@ class ModelsConfig(BaseModel):
     rung0: Rung0Config
 
 
+class SimulationConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    runs: int = Field(gt=0)
+    max_goals: int = Field(gt=0)
+    lambda_floor: float = Field(gt=0.0)
+    lambda_cap: float = Field(gt=0.0)
+
+
 class EngineConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -94,6 +103,7 @@ class EngineConfig(BaseModel):
     attack_defence: AttackDefenceConfig
     calibration: CalibrationConfig
     models: ModelsConfig
+    simulation: SimulationConfig
 
 
 def load_engine_config(path: Path) -> EngineConfig:

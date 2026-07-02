@@ -39,3 +39,9 @@ models:
   rung0:
     max_iter: 1000
     c: 1.0                    # inverse regularisation strength for the multinomial LR
+
+simulation:
+  runs: 100000                # Monte Carlo runs (SCOPE §2.9 default)
+  max_goals: 10               # scoreline grid is 0..max_goals per side
+  lambda_floor: 0.2           # clamp on double-Poisson means (attack/defence scale
+  lambda_cap: 3.5             # drift makes extreme mismatches explode otherwise)

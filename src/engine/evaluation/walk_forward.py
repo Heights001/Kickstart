@@ -12,7 +12,7 @@ from engine.core.config import BacktestWindow, EngineConfig
 from engine.evaluation.metrics import FloatArray, IntArray, brier, ece, log_loss
 from engine.models.base import labels_array
 from engine.models.baselines import FrequencyBaseline
-from engine.models.calibration import fit_best_calibrator
+from engine.models.calibration import Calibrator, fit_best_calibrator
 from engine.models.rung0 import Rung0Model, rung0_features
 from engine.ratings.store import MatchFeatures
 
@@ -87,6 +87,26 @@ def evaluate_window(
         model=_metrics(y_test, probs, bins),
         baseline=_metrics(y_test, baseline_probs, bins),
     )
+
+
+def fit_model_asof(
+    features: list[MatchFeatures], as_of: dt.date, config: EngineConfig
+) -> tuple[Rung0Model, Calibrator]:
+    """Train Rung 0 + its calibrator strictly on pre-``as_of`` data (rule 3)."""
+    calib_start = _years_before(as_of, config.calibration.window_years)
+    train = [f for f in features if f.date < calib_start]
+    val = [f for f in features if calib_start <= f.date < as_of]
+    if not train or not val:
+        raise ValueError(f"as_of {as_of}: empty split (train={len(train)}, val={len(val)})")
+    model = Rung0Model(config.models.rung0, config.seed)
+    model.fit(rung0_features(train), labels_array(train))
+    calibrator = fit_best_calibrator(
+        model.predict_proba(rung0_features(val)),
+        labels_array(val),
+        ece_bins=config.calibration.ece_bins,
+        seed=config.seed,
+    )
+    return model, calibrator
 
 
 def _metrics(y: IntArray, probs: FloatArray, bins: int) -> Metrics:

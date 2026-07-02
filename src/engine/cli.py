@@ -1,6 +1,7 @@
 """Thin CLI wrapper: ``engine <subcommand>`` (SCOPE.md §3)."""
 
 import argparse
+import datetime as dt
 import json
 import sys
 from dataclasses import asdict
@@ -10,6 +11,7 @@ from engine.core.config import load_backtests, load_engine_config
 from engine.evaluation.walk_forward import evaluate_window
 from engine.ingestion.pipeline import IngestReport, ingest_pack
 from engine.ratings.pipeline import load_features, rebuild_ratings
+from engine.simulation.pipeline import run_simulation
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -19,12 +21,17 @@ def main(argv: list[str] | None = None) -> int:
     ingest = sub.add_parser("ingest", help="Pull/refresh all sources for a pack")
     ratings = sub.add_parser("ratings", help="Rebuild chronological ratings for a pack")
     train = sub.add_parser("train", help="Train + calibrate a rung, walk-forward evaluated")
-    for sub_parser in (ingest, ratings, train):
+    simulate = sub.add_parser("simulate", help="Monte Carlo simulation of the competition")
+    for sub_parser in (ingest, ratings, train, simulate):
         sub_parser.add_argument("--pack", type=Path, required=True, help="Path to a pack folder")
         sub_parser.add_argument("--data-dir", type=Path, default=Path("data"))
-    for sub_parser in (ratings, train):
+    for sub_parser in (ratings, train, simulate):
         sub_parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     train.add_argument("--rung", type=int, choices=[0], default=0)
+    group = simulate.add_mutually_exclusive_group()
+    group.add_argument("--as-of", default="now", help='"now" or YYYY-MM-DD')
+    group.add_argument("--freeze", default=None, help="Alias for --as-of (rewind backtests)")
+    simulate.add_argument("--runs", type=int, default=None, help="Override configured run count")
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
@@ -40,7 +47,36 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "train":
         return _run_train(args.pack, args.data_dir, args.config)
+    if args.command == "simulate":
+        raw = args.freeze if args.freeze is not None else args.as_of
+        as_of = dt.date.today() if raw == "now" else dt.date.fromisoformat(raw)
+        return _run_simulate(args.pack, args.data_dir, args.config, as_of, args.runs)
     return 1  # pragma: no cover - argparse enforces the subcommand
+
+
+def _run_simulate(
+    pack_dir: Path, data_dir: Path, config_path: Path, as_of: dt.date, runs: int | None
+) -> int:
+    result, _spec = run_simulation(pack_dir, data_dir, config_path, as_of, runs)
+    print(
+        f"\nas-of {result.as_of} | {result.runs} runs | seed {result.seed} "
+        f"| rung0+{result.calibrator}"
+    )
+    header = (
+        f"{'team':24} {'champion':>9} {'±SE':>7} {'final':>7} {'SF':>7} "
+        f"{'QF':>7} {'R16':>7} {'R32':>7}"
+    )
+    print(header)
+    ranked = sorted(result.reach.items(), key=lambda kv: kv[1]["champion"], reverse=True)
+    for team, p in ranked:
+        se = result.standard_error(p["champion"])
+        print(
+            f"{team:24} {p['champion']:>9.4f} {se:>7.4f} {p['F']:>7.4f} {p['SF']:>7.4f} "
+            f"{p['QF']:>7.4f} {p['R16']:>7.4f} {p['R32']:>7.4f}"
+        )
+    print("\nMC standard error only — model uncertainty is not included.")
+    print(f"Probability history appended: {data_dir / 'processed' / 'prob_history.jsonl'}")
+    return 0
 
 
 def _run_train(pack_dir: Path, data_dir: Path, config_path: Path) -> int:
