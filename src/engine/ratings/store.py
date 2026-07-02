@@ -41,6 +41,13 @@ class MatchFeatures(BaseModel):
     defence_away: float
     rest_days_home: int
     rest_days_away: int
+    # Chronological experience counters, both strictly pre-match.
+    matches_home: int = 0
+    matches_away: int = 0
+    # Prior matches in the same importance tier as this match's competition
+    # (for a World Cup match this is World Cup experience).
+    tier_matches_home: int = 0
+    tier_matches_away: int = 0
     outcome: Outcome
 
     @property
@@ -62,6 +69,8 @@ class RatingsWalker:
         self.form = FormRater(config.form)
         self.attack_defence = AttackDefenceRater(config.attack_defence)
         self._last_played: dict[str, dt.date] = {}
+        self._matches_played: dict[str, int] = {}
+        self._tier_matches: dict[tuple[str, str], int] = {}  # (team, tier) -> count
         self._cursor: dt.date | None = None
 
     def observe(self, match: Match) -> MatchFeatures:
@@ -71,15 +80,18 @@ class RatingsWalker:
                 f"({match.home} vs {match.away})"
             )
         self._cursor = match.date
-        features = self._snapshot(match)
-        self.elo.update(match, self._tiers.tier_of(match.competition))
+        tier = self._tiers.tier_of(match.competition)
+        features = self._snapshot(match, tier)
+        self.elo.update(match, tier)
         self.form.update(match)
         self.attack_defence.update(match)
-        self._last_played[match.home] = match.date
-        self._last_played[match.away] = match.date
+        for team in (match.home, match.away):
+            self._last_played[team] = match.date
+            self._matches_played[team] = self._matches_played.get(team, 0) + 1
+            self._tier_matches[team, tier] = self._tier_matches.get((team, tier), 0) + 1
         return features
 
-    def _snapshot(self, match: Match) -> MatchFeatures:
+    def _snapshot(self, match: Match, tier: str) -> MatchFeatures:
         return MatchFeatures(
             date=match.date,
             competition=match.competition,
@@ -96,6 +108,10 @@ class RatingsWalker:
             defence_away=self.attack_defence.defence(match.away),
             rest_days_home=self._rest_days(match.home, match.date),
             rest_days_away=self._rest_days(match.away, match.date),
+            matches_home=self._matches_played.get(match.home, 0),
+            matches_away=self._matches_played.get(match.away, 0),
+            tier_matches_home=self._tier_matches.get((match.home, tier), 0),
+            tier_matches_away=self._tier_matches.get((match.away, tier), 0),
             outcome=_outcome(match),
         )
 

@@ -133,6 +133,21 @@ class TestStore:
         assert features.rest_days_home == 3
         assert features.rest_days_away == 3
 
+    def test_experience_counters_are_pre_match(self, walker: RatingsWalker) -> None:
+        first = walker.observe(make_match(date=dt.date(2022, 11, 25)))
+        assert first.matches_home == 0
+        assert first.tier_matches_home == 0
+        # Second match is a Friendly: total count advanced, but friendly-tier
+        # experience is still zero for both teams.
+        second = walker.observe(make_match(date=dt.date(2022, 11, 28), competition="Friendly"))
+        assert second.matches_home == 1
+        assert second.tier_matches_home == 0
+        # Third match back in the World Cup tier sees exactly one WC match.
+        third = walker.observe(make_match(date=dt.date(2022, 12, 1)))
+        assert third.matches_home == 2
+        assert third.tier_matches_home == 1
+        assert third.tier_matches_away == 1
+
     def test_out_of_order_raises(self, walker: RatingsWalker) -> None:
         walker.observe(make_match(date=dt.date(2022, 11, 25)))
         with pytest.raises(ValueError, match="out of order"):
