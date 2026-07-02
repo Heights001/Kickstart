@@ -5,6 +5,7 @@ Hyperparameters are tuned on the validation window passed to :meth:`Rung2Model.t
 STATUS.md. All randomness is seeded; Optuna uses a seeded TPE sampler.
 """
 
+import warnings
 from typing import Any
 
 import lightgbm as lgb
@@ -96,7 +97,11 @@ class Rung2Model:
 
     @staticmethod
     def _ordered_proba(model: lgb.LGBMClassifier, x: FloatArray) -> FloatArray:
-        raw = np.asarray(model.predict_proba(x), dtype=np.float64)
+        with warnings.catch_warnings():
+            # We train and predict on plain ndarrays; sklearn's feature-name
+            # check warns spuriously against LightGBM's auto-generated names.
+            warnings.filterwarnings("ignore", message="X does not have valid feature names")
+            raw = np.asarray(model.predict_proba(x), dtype=np.float64)
         probs = np.zeros((x.shape[0], 3), dtype=np.float64)
         for column, label in enumerate(model.classes_):
             probs[:, int(label)] = raw[:, column]

@@ -124,8 +124,11 @@ def _run_train_rung(pack_dir: Path, data_dir: Path, config_path: Path, rung: int
     features = load_features(data_dir / "processed" / "features.jsonl")
     windows = load_backtests(pack_dir)
 
+    # Compare against the currently shipped rung: beating an unpromoted middle
+    # rung must not ship a model that loses to what simulate actually uses.
+    incumbent_rung = promoted_rung(data_dir)
     candidate_spec = get_rung(rung, config)
-    incumbent_spec = get_rung(rung - 1, config)
+    incumbent_spec = get_rung(incumbent_rung, config)
     candidate = [evaluate_window(features, w, config, candidate_spec) for w in windows]
     incumbent = [evaluate_window(features, w, config, incumbent_spec) for w in windows]
 
@@ -137,7 +140,7 @@ def _run_train_rung(pack_dir: Path, data_dir: Path, config_path: Path, rung: int
                 f"{r.model.log_loss:>9.4f} {r.model.brier:>7.4f} {r.model.ece:>7.4f}"
             )
 
-    decision = decide(rung, candidate, rung - 1, incumbent)
+    decision = decide(rung, candidate, incumbent_rung, incumbent)
     run_id = log_rung_evaluation(config.mlflow, candidate_spec.name, candidate, decision)
     registry_path = record_promotion(data_dir, decision)
 

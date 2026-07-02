@@ -15,7 +15,10 @@ def log_rung_evaluation(
     results: list[WindowResult],
     decision: PromotionDecision | None = None,
 ) -> str:
-    mlflow.set_tracking_uri(Path(config.tracking_dir).absolute().as_uri())
+    tracking_dir = Path(config.tracking_dir).absolute()
+    tracking_dir.mkdir(parents=True, exist_ok=True)
+    # MLflow >=3.14 requires a database backend; local sqlite keeps it self-contained.
+    mlflow.set_tracking_uri(f"sqlite:///{tracking_dir / 'mlflow.db'}")
     mlflow.set_experiment(config.experiment)
     with mlflow.start_run(run_name=rung_name) as run:
         mlflow.log_param("rung", rung_name)
