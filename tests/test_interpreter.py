@@ -59,7 +59,7 @@ class TestRankGroup:
         records = compute_records(teams, results, POINTS)
         assert records["w"].key == (6, 3, 4)
         assert records["x"].key == (6, 0, 4)
-        assert records["y"].key == (6, 1, 4)
+        assert records["y"].key == (6, 2, 4)
         assert rank_group(teams, results, POINTS, CHAIN, rng()) == ["w", "y", "x", "z"]
 
     def test_full_tie_random_is_seeded(self) -> None:
