@@ -3,6 +3,7 @@
 import argparse
 import datetime as dt
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -31,6 +32,14 @@ def main(argv: list[str] | None = None) -> int:
     for sub_parser in (ratings, train, simulate):
         sub_parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     train.add_argument("--rung", type=int, choices=[0, 1, 2], default=0)
+    api = sub.add_parser("api", help="Serve the FastAPI app")
+    dashboard = sub.add_parser("dashboard", help="Launch the Streamlit dashboard")
+    for sub_parser in (api, dashboard):
+        sub_parser.add_argument("--pack", type=Path, required=True)
+        sub_parser.add_argument("--data-dir", type=Path, default=Path("data"))
+        sub_parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
+    api.add_argument("--host", default="127.0.0.1")
+    api.add_argument("--port", type=int, default=8000)
     ingest.add_argument(
         "--refresh",
         action="store_true",
@@ -61,6 +70,25 @@ def main(argv: list[str] | None = None) -> int:
         raw = args.freeze if args.freeze is not None else args.as_of
         as_of = dt.date.today() if raw == "now" else dt.date.fromisoformat(raw)
         return _run_simulate(args.pack, args.data_dir, args.config, as_of, args.runs)
+    if args.command == "api":
+        import uvicorn
+
+        from engine.api.app import create_app
+
+        uvicorn.run(
+            create_app(args.pack, args.data_dir, args.config), host=args.host, port=args.port
+        )
+        return 0
+    if args.command == "dashboard":
+        import subprocess
+
+        app_path = Path(__file__).parent / "dashboard" / "app.py"
+        env = os.environ | {
+            "ENGINE_PACK": str(args.pack),
+            "ENGINE_DATA_DIR": str(args.data_dir),
+            "ENGINE_CONFIG": str(args.config),
+        }
+        return subprocess.call([sys.executable, "-m", "streamlit", "run", str(app_path)], env=env)
     return 1  # pragma: no cover - argparse enforces the subcommand
 
 

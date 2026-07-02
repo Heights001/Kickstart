@@ -5,15 +5,19 @@ description = "Competition-agnostic football prediction engine. v1 pack: FIFA Wo
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "fastapi>=0.139.0",
     "lightgbm>=4.6.0",
     "mlflow>=3.14.0",
     "numpy>=2.0,<2.5",  # numba (shap dependency) caps numpy below 2.5
     "optuna>=4.9.0",
+    "plotly>=6.8.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "scikit-learn>=1.9.0",
     "shap>=0.52",
+    "streamlit>=1.58.0",
     "tqdm>=4.66",
+    "uvicorn>=0.49.0",
 ]
 
 [project.scripts]
@@ -26,6 +30,7 @@ dev = [
     "mypy>=1.15",
     "types-pyyaml>=6.0",
     "types-tqdm>=4.66",
+    "httpx2>=2.5.0",
 ]
 
 [tool.uv]
@@ -66,7 +71,7 @@ files = ["src"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "lightgbm.*", "optuna.*", "mlflow.*", "shap.*"]
+module = ["sklearn.*", "lightgbm.*", "optuna.*", "mlflow.*", "shap.*", "plotly.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -30,3 +30,10 @@ class Rung1Model:
         for column, label in enumerate(self._pipeline.classes_):
             probs[:, int(label)] = raw[:, column]
         return probs
+
+    def home_win_contributions(self, x: FloatArray) -> list[float]:
+        """Per-feature contribution to the home-win logit (on the scaled input)."""
+        scaled = self._pipeline.named_steps["scale"].transform(x)
+        lr = self._pipeline.named_steps["lr"]
+        row = list(lr.classes_).index(0)
+        return [float(c * v) for c, v in zip(lr.coef_[row], scaled[0], strict=True)]

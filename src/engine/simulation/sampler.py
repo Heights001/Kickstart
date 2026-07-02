@@ -153,6 +153,28 @@ class MatchSampler:
             outcome="D",  # placeholder; extractors never read the label
         )
 
+    @property
+    def model(self) -> OutcomeModel:
+        return self._model
+
+    @property
+    def as_of(self) -> dt.date:
+        return self._as_of
+
+    def team_states(self) -> dict[str, TeamState]:
+        return dict(self._teams)
+
+    def is_neutral(self, home: str, away: str) -> bool:
+        # Neutral unless exactly one side is a host (who then plays at home).
+        return (home in self._hosts) == (away in self._hosts)
+
+    def feature_row(self, home: str, away: str) -> FloatArray:
+        """The model input row for this pairing (venue-aware), for explanations."""
+        if away in self._hosts and home not in self._hosts:
+            home, away = away, home  # probabilities are computed host-first
+        neutral = self.is_neutral(home, away)
+        return self.rung.extract([self._synthetic_features(home, away, neutral=neutral)])
+
     def knockout_home_win_prob(self, home: str, away: str) -> float:
         """P(home advances): draws split by renormalised win probabilities."""
         p = self.outcome_probs(home, away)

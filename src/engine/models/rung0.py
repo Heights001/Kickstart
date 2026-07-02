@@ -33,3 +33,8 @@ class Rung0Model:
         for column, label in enumerate(self._model.classes_):
             probs[:, int(label)] = raw[:, column]
         return probs
+
+    def home_win_contributions(self, x: FloatArray) -> list[float]:
+        """Per-feature contribution to the home-win logit for one row."""
+        row = list(self._model.classes_).index(0)
+        return [float(c * v) for c, v in zip(self._model.coef_[row], x[0], strict=True)]
