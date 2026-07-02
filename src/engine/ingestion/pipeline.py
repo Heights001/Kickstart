@@ -7,6 +7,7 @@ added silently. All other sources raise on any unresolved name (CLAUDE.md rule 4
 """
 
 import datetime as dt
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,6 +23,13 @@ from engine.utils.logging import get_logger, log_with
 logger = get_logger(__name__)
 
 PROCESSED_MATCHES = "matches.jsonl"
+
+
+def load_matches(path: Path) -> Iterator[Match]:
+    """Stream canonical matches back from a processed JSONL file."""
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            yield Match.model_validate_json(line)
 
 
 @dataclass
