@@ -1,0 +1,25 @@
+# Maps backbone tournament names to importance tiers (K-factors live in engine
+# config keyed by these tiers). Names not listed fall through the suffix rule,
+# then to default_tier.
+tiers:
+  world_cup:
+    - FIFA World Cup
+  continental:
+    - UEFA Euro
+    - Copa América
+    - African Cup of Nations
+    - AFC Asian Cup
+    - Gold Cup
+    - CONCACAF Championship
+    - Oceania Nations Cup
+    - Confederations Cup
+  nations_league:
+    - UEFA Nations League
+    - CONCACAF Nations League
+  friendly:
+    - Friendly
+# Any tournament ending with this suffix is a qualifier (covers World Cup, Euro,
+# AFCON, Asian Cup, ... qualification variants).
+qualification_suffix: " qualification"
+qualification_tier: qualifier
+default_tier: other

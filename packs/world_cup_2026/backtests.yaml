@@ -1,0 +1,15 @@
+# Walk-forward backtest windows (SCOPE §2.12): freeze strictly before kickoff,
+# evaluate on the tournament's matches. Training uses matches < freeze only.
+backtests:
+  - name: wc2014
+    freeze: 2014-06-12
+    end: 2014-07-14
+    competition: FIFA World Cup
+  - name: wc2018
+    freeze: 2018-06-14
+    end: 2018-07-16
+    competition: FIFA World Cup
+  - name: wc2022
+    freeze: 2022-11-20
+    end: 2022-12-19
+    competition: FIFA World Cup

@@ -1,0 +1,41 @@
+# Engine defaults. Every tunable number lives here, not in code (CLAUDE.md style).
+seed: 42
+
+elo:
+  initial: 1500.0
+  home_advantage: 80.0        # Elo points; suppressed entirely when neutral=true
+  # K by competition importance tier (tiers are mapped per-pack in competitions.yaml).
+  # Values follow the eloratings.net convention.
+  k_factors:
+    world_cup: 60.0
+    continental: 50.0
+    qualifier: 40.0
+    nations_league: 30.0
+    other: 30.0
+    friendly: 20.0
+  goal_margin:                # multiplier on K by winning margin (eloratings.net style)
+    two_goals: 1.5
+    three_goals: 1.75
+    per_extra_goal: 0.125     # added per goal beyond three
+
+form:
+  decay: 0.85                 # weight retained per match in the exponentially weighted form score
+
+rest:
+  cap_days: 30                # rest-day feature is clipped here
+  default_days: 30            # assumed rest before a team's first recorded match
+
+attack_defence:
+  alpha: 0.1                  # EW step toward the implied attack/defence rate
+  mu_alpha: 0.02              # EW step for the global goals-per-side mean
+  initial_mu: 1.3             # starting global mean goals per side
+  floor: 0.2                  # lower bound on ratings/expectations to keep updates stable
+
+calibration:
+  window_years: 4             # validation window (before each test window) for fitting calibrators
+  ece_bins: 10
+
+models:
+  rung0:
+    max_iter: 1000
+    c: 1.0                    # inverse regularisation strength for the multinomial LR
