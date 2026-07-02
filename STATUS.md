@@ -1,75 +1,73 @@
 # STATUS.md
 
-**Last updated:** 2026-07-02 (end of P2 session)
-**Tournament context:** WC2026 live — R32 in progress, final July 19. **The MVP milestone
-(P2) shipped 17 days before the final.**
+**Last updated:** 2026-07-02 (end of P3 session)
+**Tournament context:** WC2026 live — R32 in progress, final July 19. MVP (P2) shipped;
+P3's promoted model now drives the live simulations.
 
 ## Current phase
 
-**P2 — complete (MVP).** Both done-when criteria hold, all four gates green, 92 tests.
+**P3 — complete.** Model ladder built and evaluated; **Rung 2 (LightGBM+Optuna) is
+promoted** and `engine simulate` uses it. All four gates green, 104 tests.
 
-- `uv run engine simulate --pack packs/world_cup_2026` (as-of now, 100k runs, 4.4s):
-  champion table with MC standard errors. Headline: **Argentina 28.0% ±0.14, France 22.4%,
-  Spain 18.3%, Mexico 9.2%, Brazil 6.2%**. Facts corroborate reality — eliminated teams
-  (South Korea, Saudi Arabia, …) at exactly 0.0; R32 losers (Germany, Netherlands, Japan,
-  Ivory Coast) match the real shootout/knockout results.
-- `--freeze 2026-06-10` (100k runs, 13.6s) reproduces a pre-tournament run from zero facts:
-  **Spain 29.1%, Argentina 19.8%, France 10.3%** ante post.
-- Every run appends per-team round-reach probabilities to
-  `data/processed/prob_history.jsonl` (SCOPE §2.10).
+Promotion results (walk-forward, WC 2014/18/22, means across windows; MLflow-logged):
+
+| candidate | mean log loss | vs shipped | mean ECE | vs shipped | decision |
+|-----------|--------------:|-----------:|---------:|-----------:|----------|
+| rung1 (feature LR) | 0.9797 | 0.9880 | 0.1140 | 0.1019 | **NOT promoted** — better log loss, worse calibration (rule 6) |
+| rung2 (LightGBM)   | 0.9850 | 0.9880 | 0.0699 | 0.1019 | **PROMOTED** — better on both |
+
+Live simulation with rung 2 (100k runs, as-of 2026-07-02): **France 20.8%, Argentina
+19.4%, Spain 11.9%, Brazil 11.4%, Mexico 9.9%, USA 6.8%**. Rung 2 flattens rung 0's
+Elo-only hierarchy (Argentina was 28.0%) and rates hosts/USA higher. Rewind
+(`--freeze 2026-06-10`) works with the promoted rung: Spain 23.6% ante post.
 
 Shipped this session:
-- **Pack format data:** `format.yaml` (real draw, tiebreaker chains per SCOPE §2.8, hosts,
-  full knockout template matches 73–104) and `bracket_allocation.yaml` — FIFA's complete
-  Annex C (495 combinations), sourced from a machine-readable transcription independently
-  verified against FIFA's regulations PDF (dw-football/wc2026-bracket). The live
-  combination (BDEFGJKL) reproduces the actual R32 pairings (Germany–Paraguay,
-  France–Sweden), confirming table + template end-to-end.
-- **Shootout handling:** the backbone records 90-minute scores, so martj42's
-  `shootouts.csv` is a second pack source; `Match.winner` (optional) is annotated at
-  ingest (642 drawn matches across history). Drawn knockout facts without a winner raise.
-- **Format interpreter** (`src/engine/simulation/`): group ranking
-  (points → GD → GF → head-to-head → seeded random), best-thirds ranking, Annex C lookup,
-  slot grammar (`1A`/`2B`/`T1E`/`W74`/`L101`), live-state builder (group facts = same-group
-  first meetings; later meetings go to the knockout facts pool).
-- **Match sampler:** Rung 0 + calibrator fitted strictly pre-as-of; venue-aware probs
-  (host ⇒ home advantage, else neutral; rest-diff 0); conditional double-Poisson
-  scorelines (λ clamped to config bounds); knockout draws renormalised.
-- **Monte Carlo:** fully seeded, group fixtures vectorised across runs, completed
-  stable groups ranked once, unused-fact integrity check, MC SE on every probability.
-  ~23k runs/s live, ~7.4k runs/s full rewind.
-- `engine ingest --refresh`: date-stamped raw downloads (raw/ stays append-only) for
-  updating results through the final.
+- **Feature store extension:** chronological experience counters (total matches +
+  same-tier matches, both strictly pre-match) in `RatingsWalker`/`MatchFeatures`.
+- **Rung 1** (`models/rung1.py`): scaled multinomial LR on the full 8-feature set
+  (`models/features.py`: elo/form/attack/defence/rest diffs, neutral, log-scaled
+  experience diffs).
+- **Rung 2** (`models/rung2.py`): LightGBM multiclass, seeded Optuna TPE (25 trials,
+  space in config), early stopping, deterministic mode.
+- **Ladder + generic evaluation:** `models/ladder.py` RungSpecs; `evaluate_window` and
+  `fit_model_asof` take any rung; sampler builds synthetic as-of feature rows per
+  pairing, so any rung can drive simulation.
+- **Promotion gate** (`evaluation/promotion.py`): better mean log loss AND
+  no-worse mean ECE vs the **currently shipped** rung (not blindly N-1 — beating an
+  unpromoted middle rung must not ship a regression). `model_registry.json` records
+  the promoted rung; simulate reads it. Models are never persisted — they are
+  as-of-dependent and retrained at simulation time (rule 3).
+- **MLflow** local tracking (sqlite backend — MLflow ≥3.14 dropped the file store) in
+  `mlruns/`; each rung evaluation + promotion comparison logged (rule 6).
+- **SHAP** (`explain/shap_explain.py`): mean-|SHAP| feature importance for rung 2;
+  sanity test confirms elo_diff dominates on synthetic data.
 
 ## Decisions made this session
 
-- **Live state is CSV-only for now** (SCOPE §2.11 partial deviation): open question #2
-  (football-data.org key) is still unanswered, and the backbone CSV already carries
-  results through 2026-06-30 with regular updates. The API adapter can slot in behind
-  the same interface later; nothing blocks on it.
-- Static ratings within a simulation run (no in-run Elo updates).
-- Venue approximation (hosts get home advantage; host-vs-host treated neutral) and
-  rest-diff 0 for simulated matches — documented in format.yaml.
-- λ clamped to [0.2, 3.5] because of the attack/defence scale drift (P1 caveat); this
-  only affects group tiebreak resolution, not match winners.
+- Promotion compares against the shipped rung, not rung N-1 (see above).
+- xG/FIFA-rank enrichment stays out of v1 features (open question #3 unanswered;
+  SCOPE treats them as optional-behind-masks anyway).
+- numpy pinned <2.5 (numba/shap chain); uv lock limited to arm64-macOS + Linux
+  (shap's Intel-macOS constraint drags in unbuildable llvmlite); Python <3.14.
+- libomp installed via Homebrew (LightGBM runtime requirement on macOS).
 
 ## Honest caveats
 
-- Backbone data lags ~1–2 days (currently through 6/30): matches played since are
-  simulated, not facts. `engine ingest --refresh` + `engine ratings` before simulating
-  picks up new results when martj42 updates.
-- Fair-play tiebreaker approximated by seeded random (SCOPE-documented); shootout model
-  is strength-proportional renormalisation.
-- wc2014 calibration caveat from P1 still stands; attack/defence normalisation still
-  worth revisiting (feeds scoreline sampler now).
+- **Optuna tunes on the same window the calibrator uses** — mild optimism in rung 2's
+  validation loss. Nested walk-forward tuning is the clean fix if it ever matters.
+- Rung 2's promotion margin on log loss is modest (0.9850 vs 0.9880, n_test=192);
+  its calibration improvement is the stronger signal. Re-run the comparison after the
+  tournament adds data.
+- Simulation startup now includes Optuna tuning (~1–2 min) since models retrain as-of.
+- P1/P2 caveats stand (wc2014 calibration, attack/defence drift, data lag ~1–2 days).
 
 ## Next actions
 
-1. P3: feature store + Rung 1 (feature LR) + Rung 2 (LightGBM+Optuna) with MLflow
-   tracking and the promote-only-if-better gate.
-2. Or pull forward P4's probability-over-time chart — prob_history already accumulates,
-   and the tournament ends July 19 (the killer feature has a hard deadline).
-3. Answer SCOPE §7 open questions (repo name, football-data.org key, xG, license).
+1. P4: FastAPI endpoints + Streamlit dashboard — the probability-over-time chart has a
+   hard deadline (final is July 19) and prob_history already accumulates.
+2. `engine ingest --refresh` + `engine ratings` + `engine simulate` daily during the
+   knockouts to build out prob_history.
+3. Open questions (repo name, football-data.org key, license) still with Daniel.
 
 ## Reopened decisions
 
