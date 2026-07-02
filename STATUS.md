@@ -1,58 +1,75 @@
 # STATUS.md
 
-**Last updated:** 2026-07-02 (end of P1 session)
-**Tournament context:** WC2026 live — group stage complete, Round of 32 in progress. Final is
-July 19. P2 (MVP milestone) before the final is the target that makes this tournament usable
-end-to-end; earlier is better for the probability-over-time chart.
+**Last updated:** 2026-07-02 (end of P2 session)
+**Tournament context:** WC2026 live — R32 in progress, final July 19. **The MVP milestone
+(P2) shipped 17 days before the final.**
 
 ## Current phase
 
-**P1 — complete.** Rung 0 beats the frequency baseline on held-out log loss in all three
-backtest windows; ECE reported; all four gates green.
+**P2 — complete (MVP).** Both done-when criteria hold, all four gates green, 92 tests.
 
-`uv run engine train --pack packs/world_cup_2026 --rung 0` (walk-forward, isotonic
-calibration chosen on every window):
-
-| window | n_test | log loss | baseline ll | Brier | ECE | baseline ECE |
-|--------|-------:|---------:|------------:|------:|----:|-------------:|
-| wc2014 | 64 | 0.9100 | 1.0594 | 0.5387 | 0.1541 | 0.0424 |
-| wc2018 | 64 | 0.9828 | 1.0949 | 0.5815 | 0.0683 | 0.1032 |
-| wc2022 | 64 | 1.0712 | 1.0744 | 0.6186 | 0.0833 | 0.0544 |
+- `uv run engine simulate --pack packs/world_cup_2026` (as-of now, 100k runs, 4.4s):
+  champion table with MC standard errors. Headline: **Argentina 28.0% ±0.14, France 22.4%,
+  Spain 18.3%, Mexico 9.2%, Brazil 6.2%**. Facts corroborate reality — eliminated teams
+  (South Korea, Saudi Arabia, …) at exactly 0.0; R32 losers (Germany, Netherlands, Japan,
+  Ivory Coast) match the real shootout/knockout results.
+- `--freeze 2026-06-10` (100k runs, 13.6s) reproduces a pre-tournament run from zero facts:
+  **Spain 29.1%, Argentina 19.8%, France 10.3%** ante post.
+- Every run appends per-team round-reach probabilities to
+  `data/processed/prob_history.jsonl` (SCOPE §2.10).
 
 Shipped this session:
-- Config layer: `configs/default.yaml` + typed loaders (`src/engine/core/config.py`); pack
-  gains `competitions.yaml` (tournament → importance tier) and `backtests.yaml` (WC windows).
-- Chronological ratings (`src/engine/ratings/`): Elo (K by tier, goal-margin multiplier,
-  home advantage suppressed on neutral), multiplicative attack/defence, EW form, and the
-  as-of feature store (pre-match snapshots; out-of-order matches raise). `engine ratings`
-  writes `features.jsonl` + `ratings.json` (49,484 rows, 336 teams).
-- Models + evaluation: OutcomeModel protocol, frequency baseline, Rung 0 multinomial LR on
-  [elo_diff, neutral, rest_diff], isotonic/Platt/identity calibration picked by ECE on a
-  walk-forward validation window, metrics (log loss / Brier / top-label ECE), and
-  `engine train --rung 0` printing the gate table + writing `eval_rung0.json`.
+- **Pack format data:** `format.yaml` (real draw, tiebreaker chains per SCOPE §2.8, hosts,
+  full knockout template matches 73–104) and `bracket_allocation.yaml` — FIFA's complete
+  Annex C (495 combinations), sourced from a machine-readable transcription independently
+  verified against FIFA's regulations PDF (dw-football/wc2026-bracket). The live
+  combination (BDEFGJKL) reproduces the actual R32 pairings (Germany–Paraguay,
+  France–Sweden), confirming table + template end-to-end.
+- **Shootout handling:** the backbone records 90-minute scores, so martj42's
+  `shootouts.csv` is a second pack source; `Match.winner` (optional) is annotated at
+  ingest (642 drawn matches across history). Drawn knockout facts without a winner raise.
+- **Format interpreter** (`src/engine/simulation/`): group ranking
+  (points → GD → GF → head-to-head → seeded random), best-thirds ranking, Annex C lookup,
+  slot grammar (`1A`/`2B`/`T1E`/`W74`/`L101`), live-state builder (group facts = same-group
+  first meetings; later meetings go to the knockout facts pool).
+- **Match sampler:** Rung 0 + calibrator fitted strictly pre-as-of; venue-aware probs
+  (host ⇒ home advantage, else neutral; rest-diff 0); conditional double-Poisson
+  scorelines (λ clamped to config bounds); knockout draws renormalised.
+- **Monte Carlo:** fully seeded, group fixtures vectorised across runs, completed
+  stable groups ranked once, unused-fact integrity check, MC SE on every probability.
+  ~23k runs/s live, ~7.4k runs/s full rewind.
+- `engine ingest --refresh`: date-stamped raw downloads (raw/ stays append-only) for
+  updating results through the final.
 
 ## Decisions made this session
 
-- Two pack files beyond SCOPE §3's listing: `competitions.yaml` and `backtests.yaml`
-  (competition facts belong in pack YAML per rule 1).
-- numpy + scikit-learn added; still no pandas (nothing needed it). MLflow deferred to P3 —
-  P1's rung-vs-baseline comparison is recorded in the printed report + JSON artifact.
-- Final Elo table sanity-checked (Argentina/Spain/France top-3 as of 2026-07-01).
+- **Live state is CSV-only for now** (SCOPE §2.11 partial deviation): open question #2
+  (football-data.org key) is still unanswered, and the backbone CSV already carries
+  results through 2026-06-30 with regular updates. The API adapter can slot in behind
+  the same interface later; nothing blocks on it.
+- Static ratings within a simulation run (no in-run Elo updates).
+- Venue approximation (hosts get home advantage; host-vs-host treated neutral) and
+  rest-diff 0 for simulated matches — documented in format.yaml.
+- λ clamped to [0.2, 3.5] because of the attack/defence scale drift (P1 caveat); this
+  only affects group tiebreak resolution, not match winners.
 
 ## Honest caveats
 
-- **wc2014 calibration:** model ECE 0.154 vs baseline 0.042. A constant-frequency predictor
-  is trivially well-calibrated, so the gate (log loss) still passes cleanly, but Rung 0's
-  calibration is only moderate on that window. Watch it when Rung 1 arrives.
-- Attack/defence ratings drift off the 1.0-centred scale over 150 years (self-consistent,
-  but revisit normalisation before the P2 scoreline sampler consumes them).
+- Backbone data lags ~1–2 days (currently through 6/30): matches played since are
+  simulated, not facts. `engine ingest --refresh` + `engine ratings` before simulating
+  picks up new results when martj42 updates.
+- Fair-play tiebreaker approximated by seeded random (SCOPE-documented); shootout model
+  is strength-proportional renormalisation.
+- wc2014 calibration caveat from P1 still stands; attack/defence normalisation still
+  worth revisiting (feeds scoreline sampler now).
 
 ## Next actions
 
-1. P2: `format.yaml` interpreter (12 groups of 4, full tiebreaker chain incl. best-thirds +
-   FIFA allocation table) + `bracket_allocation.yaml` in the pack.
-2. P2: conditional scoreline sampler + Monte Carlo simulator (`engine simulate --as-of now`).
-3. P2: live-state ingestion (football-data.org + CSV fallback) and `prob_history` table.
+1. P3: feature store + Rung 1 (feature LR) + Rung 2 (LightGBM+Optuna) with MLflow
+   tracking and the promote-only-if-better gate.
+2. Or pull forward P4's probability-over-time chart — prob_history already accumulates,
+   and the tournament ends July 19 (the killer feature has a hard deadline).
+3. Answer SCOPE §7 open questions (repo name, football-data.org key, xG, license).
 
 ## Reopened decisions
 
