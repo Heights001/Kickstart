@@ -3,12 +3,16 @@ name = "predictor-engine"
 version = "0.1.0"
 description = "Competition-agnostic football prediction engine. v1 pack: FIFA World Cup 2026."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
-    "numpy>=2.5.0",
+    "lightgbm>=4.6.0",
+    "mlflow>=3.14.0",
+    "numpy>=2.0,<2.5",  # numba (shap dependency) caps numpy below 2.5
+    "optuna>=4.9.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "scikit-learn>=1.9.0",
+    "shap>=0.52",
     "tqdm>=4.66",
 ]
 
@@ -22,6 +26,14 @@ dev = [
     "mypy>=1.15",
     "types-pyyaml>=6.0",
     "types-tqdm>=4.66",
+]
+
+[tool.uv]
+# Lock only for the platforms we run on (Apple Silicon dev, Linux CI); shap's
+# Intel-macOS constraints otherwise force prehistoric llvmlite into the lock.
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux'",
 ]
 
 [build-system]
