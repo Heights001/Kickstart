@@ -1,0 +1,117 @@
+# Registry seed: the 48 teams qualified for the 2026 FIFA World Cup.
+# Canonical names match the martj42 backbone dataset; aliases cover FIFA-style
+# and common variants. Verified against the qualified-team list on 2026-07-01.
+teams:
+  # CONCACAF (6)
+  - id: usa
+    name: United States
+    aliases: [USA, USMNT, United States of America]
+  - id: mexico
+    name: Mexico
+  - id: canada
+    name: Canada
+  - id: panama
+    name: Panama
+  - id: haiti
+    name: Haiti
+  - id: curacao
+    name: Curaçao
+    aliases: [Curacao]
+  # CONMEBOL (6)
+  - id: argentina
+    name: Argentina
+  - id: brazil
+    name: Brazil
+  - id: colombia
+    name: Colombia
+  - id: ecuador
+    name: Ecuador
+  - id: paraguay
+    name: Paraguay
+  - id: uruguay
+    name: Uruguay
+  # OFC (1)
+  - id: new_zealand
+    name: New Zealand
+  # AFC (9)
+  - id: australia
+    name: Australia
+  - id: iran
+    name: Iran
+    aliases: [IR Iran, Islamic Republic of Iran]
+  - id: iraq
+    name: Iraq
+  - id: japan
+    name: Japan
+  - id: jordan
+    name: Jordan
+  - id: qatar
+    name: Qatar
+  - id: saudi_arabia
+    name: Saudi Arabia
+  - id: south_korea
+    name: South Korea
+    aliases: [Korea Republic, Republic of Korea]
+  - id: uzbekistan
+    name: Uzbekistan
+  # CAF (10)
+  - id: algeria
+    name: Algeria
+  - id: cape_verde
+    name: Cape Verde
+    aliases: [Cabo Verde]
+  - id: dr_congo
+    name: DR Congo
+    aliases: [Congo DR, Democratic Republic of the Congo]
+  - id: egypt
+    name: Egypt
+  - id: ghana
+    name: Ghana
+  - id: ivory_coast
+    name: Ivory Coast
+    aliases: [Côte d'Ivoire, Cote d'Ivoire]
+  - id: morocco
+    name: Morocco
+  - id: senegal
+    name: Senegal
+  - id: south_africa
+    name: South Africa
+  - id: tunisia
+    name: Tunisia
+  # UEFA (16)
+  - id: austria
+    name: Austria
+  - id: belgium
+    name: Belgium
+  - id: bosnia_and_herzegovina
+    name: Bosnia and Herzegovina
+    aliases: [Bosnia-Herzegovina, Bosnia]
+  - id: croatia
+    name: Croatia
+  - id: czech_republic
+    name: Czech Republic
+    aliases: [Czechia]
+  - id: england
+    name: England
+  - id: france
+    name: France
+  - id: germany
+    name: Germany
+  - id: netherlands
+    name: Netherlands
+    aliases: [Holland, The Netherlands]
+  - id: norway
+    name: Norway
+  - id: portugal
+    name: Portugal
+  - id: scotland
+    name: Scotland
+  - id: spain
+    name: Spain
+  - id: sweden
+    name: Sweden
+  - id: switzerland
+    name: Switzerland
+  - id: turkey
+    name: Turkey
+    aliases: [Türkiye, Turkiye]

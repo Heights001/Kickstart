@@ -1,0 +1,20 @@
+# Data sources for the world_cup_2026 pack (SCOPE.md §2.11).
+# P0 ships the historical backbone only; the football-data.org live adapter
+# and its CSV fallback arrive in P2.
+sources:
+  - name: martj42_international_results
+    kind: csv
+    url: https://raw.githubusercontent.com/martj42/international_results/master/results.csv
+    filename: results.csv
+    # This dataset is the single authoritative naming source for the historical
+    # backbone: names it introduces are registered as canonical teams (collision-
+    # checked, listed in the ingest report). Approved 2026-07-01.
+    authoritative_names: true
+    columns:
+      date: date
+      home: home_team
+      away: away_team
+      home_goals: home_score
+      away_goals: away_score
+      competition: tournament
+      neutral: neutral
