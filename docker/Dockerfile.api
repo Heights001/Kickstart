@@ -1,0 +1,25 @@
+# FastAPI service image. Build from the repo root:
+#   docker build -f docker/Dockerfile.api -t predictor-engine-api .
+# The container expects processed data mounted at /app/data (run `engine ingest`
+# + `engine ratings` on the host or in an init job first).
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+WORKDIR /app
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
+COPY src ./src
+COPY README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
+
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=builder /app/.venv ./.venv
+COPY src ./src
+COPY configs ./configs
+COPY packs ./packs
+ENV PATH="/app/.venv/bin:$PATH"
+EXPOSE 8000
+CMD ["engine", "api", "--pack", "packs/world_cup_2026", "--host", "0.0.0.0", "--port", "8000"]

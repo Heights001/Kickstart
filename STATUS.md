@@ -1,50 +1,51 @@
 # STATUS.md
 
-**Last updated:** 2026-07-02 (end of P4 session)
-**Tournament context:** WC2026 live — R32 in progress, final July 19. MVP + promoted
-model + API/dashboard all shipped with 17 days of tournament left.
+**Last updated:** 2026-07-02 (end of P5 session)
+**Tournament context:** WC2026 live — R32 finishing, final July 19.
 
 ## Current phase
 
-**P4 — complete.** FastAPI service and Streamlit dashboard over the promoted rung-2
-model; all four gates green, 114 tests (incl. 10 API tests via TestClient).
+**P5 — complete. All SCOPE v1 phases (P0–P5) are done.**
 
-- **API** (`engine api --pack packs/world_cup_2026`): `/teams`, `/ratings`,
-  `/predict-match`, `/simulate` (runs param, capped), `/champion-probabilities`
-  (latest prob_history generation + full history), `/explain`. App context (data,
-  registry, promoted-rung sampler fitted as-of the data horizon) is built once in the
-  lifespan; unresolved team names return 404 carrying the suggested-alias report.
-- **Dashboard** (`engine dashboard --pack packs/world_cup_2026`): champion-odds table
-  with CSV download, **probability-over-time Plotly chart** over prob_history,
-  tournament-state tab (group results + knockout facts), match explainer (probs +
-  feature bar), model report (promotion registry + rung-0 backtest artifacts).
+- **Coverage:** 82% → **97%** (pytest-cov; Streamlit entrypoint excluded as UI).
+  New end-to-end CLI integration suite drives ingest → ratings → train (rung 0
+  gate PASS on strength-ordered synthetic data) → simulate (prob_history append)
+  → train rung 1 (promotion decision + sandboxed MLflow sqlite) through
+  `engine.cli.main`. 119 tests total.
+- **Docker:** `docker/Dockerfile.api`, `docker/Dockerfile.dashboard` (uv
+  multi-stage, libgomp for LightGBM), `docker/compose.yaml` mounting host
+  `data/`. Both images build locally (1.8GB each; first build ~35 min cold,
+  dashboard reuses the shared dependency layers) and the in-container CLI
+  entrypoint smoke-tests clean.
+- **Docs:** `docs/architecture.md` (engine/pack split, data flow, invariants),
+  `docs/methodology.md` (Elo/attack-defence/form math, ladder, calibration,
+  promotion gate, simulation, documented approximations), `docs/api.md`.
+- **README:** landing page with CI badge, live results table, quick start,
+  methodology summary, roadmap. **License deliberately "TBD"** — open question
+  §7.4 is Daniel's call and blocks public release.
 
 ## Decisions made this session
 
-- **`/explain` takes a pairing, not a match id** (SCOPE §4 deviation): canonical
-  matches carry no ids yet. Explanations: SHAP class-0 row for rung 2,
-  coefficient×value contributions for rungs 0–1 (log-odds scale, uncalibrated).
-- API `/simulate` runs at the context's as-of only; rewinds stay CLI territory.
-- Dashboard is read-only over processed artifacts except the explainer, which builds
-  the cached sampler on first use (rung-2 tuning wait, once per session).
-- httpx2 added as a dev dependency (starlette TestClient requirement).
+- Dashboard entrypoint excluded from coverage measurement (manual/UI surface).
+- Docker images expect processed `data/` mounted from outside; ingestion is not
+  baked into images.
 
 ## Honest caveats
 
-- API startup ≈ rung-2 Optuna tuning time (~1–2 min); fine for a long-lived process.
-- prob_history mixes model versions (rung0 rows from P2, rung2 rows now); the chart
-  carries model in the hover, but a proper per-model filter is P5 polish.
-- The bracket tab lists state rather than drawing a visual bracket — P5.
-- Earlier caveats stand (Optuna/calibration window overlap, wc2014 calibration,
-  attack/defence drift, data lag ~1–2 days).
+- CI does not build the Docker images (local-verified only); add a docker build
+  job if images become a release artifact.
+- `engine api`/`engine dashboard` subprocess launch paths are the residual
+  uncovered CLI lines.
+- Earlier caveats stand (Optuna/calibration overlap, wc2014 calibration,
+  attack/defence drift, backbone data lag).
 
 ## Next actions
 
-1. **Daily during knockouts:** `engine ingest --refresh` → `engine ratings` →
-   `engine simulate` to grow the probability-over-time chart.
-2. P5 hardening: coverage push, Docker images (api, dashboard), docs + README.
-3. Open questions (repo name, football-data.org key, license) still with Daniel —
-   license blocks any public release.
+1. **Daily tournament loop:** `engine ingest --refresh` → `engine ratings` →
+   `engine simulate` to feed the probability-over-time chart through July 19.
+2. Answer SCOPE §7 open questions — **license** (blocks release), repo/product
+   name, football-data.org key (P2 live adapter slot is ready), xG enrichment.
+3. Post-v1 (SCOPE §6): EPL pack as the abstraction stress test.
 
 ## Reopened decisions
 
@@ -52,4 +53,4 @@ None.
 
 ## Blocked / waiting
 
-Nothing.
+Public release blocked only on the license decision (§7.4).

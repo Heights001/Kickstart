@@ -1,0 +1,19 @@
+# Run from the repo root: docker compose -f docker/compose.yaml up
+# Both services read the host's data/ (populate with engine ingest + ratings first).
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../data:/app/data
